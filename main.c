@@ -167,7 +167,6 @@ int main(int argc,const char **argv)
       options.compiler=compiler;
       options.deleteSourceAfterUse=false;
       options.options=NULL;
-      options.includes=includesCode;
       for(int i=1;i!=argc;i++)
 	cvector_push_back(options.options, argv[i]);
       CMetaWriteOut(&instance, &buffer, outputFilePath, &options, outputSource);
@@ -177,6 +176,7 @@ int main(int argc,const char **argv)
       sdsfree(outputFilePath);
       sdsfree(includesCode);
       sdsfree(absoluteInputFileName);
+      CMetaInstanceDestroy(&instance);
     }
   return EXIT_SUCCESS;
 }

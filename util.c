@@ -14,3 +14,14 @@ sds CMetaMakeFileNameAboslute(sds filePath)
     }
   return filePath;
 }
+sds CMetaCombineFormat(const vec_sds items,const char *format)
+{
+  sds retVal=sdsnew("");
+  size_t vecSize=cvector_size(items);
+  sds *basePtr=cvector_begin(items);
+  for(size_t i=0;i!=vecSize;i++)
+    {
+      retVal=sdscatfmt(retVal, format, basePtr[i]);
+    }
+  return retVal;
+}

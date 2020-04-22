@@ -11,9 +11,20 @@ CMetaInstance CMetaInstanceInit()
   retVal.state=NULL;
   return retVal;
 }
+void vec_sdsDestroy(vec_sds toDestroy)
+{
+  size_t size=cvector_size(toDestroy);
+  sds *basePtr=cvector_begin(toDestroy);
+  for(size_t i=0;i!=size;i++)
+    {
+      sdsfree(basePtr[i]);
+    }
+  cvector_free(toDestroy);
+}
 void CMetaRun(CMetaInstance *instance,CMetaBuffer *textStart)
 {
   const char *start, *cutout,*YYMARKER=NULL;
+  CMetaSegmentType segType;
  loop:
   ;
   /*!stags:re2c format='const char *@@;';*/
@@ -27,13 +38,20 @@ void CMetaRun(CMetaInstance *instance,CMetaBuffer *textStart)
     Comment1="//"[^\n]*;
     Comment2="/"[*]([^*]|[*][^/])[*]"/";    
     Whitespace=([ \t\n\r]*|Comment1|Comment2)*;
-    SegmentStart="CMETA_SEGMENT_START"[0-9a-zA-Z_]*?Whitespace;
-    Macro=[#]([\\][^ \t]|[^\\\n]*|[\\][ \t]*[\n])*;
+    InlineSegmentStart="CMETA_INLINE"[0-9a-zA-Z_]*?Whitespace;
+    FunctionSegmentStart="CMETA_FUNCTION"[0-9a-zA-Z_]*?Whitespace;
+    IncludeSegmentStart="CMETA_INCLUDE"[0-9a-zA-Z_]*?Whitespace;
+    DefineCMetaMacro=[#]Whitespace"define" Whitespace "CMETA_"[0-9a-zA-Z_]*;
 
     * {goto loop;}
-    Macro {goto loop;}
-    @cutout SegmentStart "(" @start  {goto foundPossibleSeg;} 
+    DefineCMetaMacro {goto loop;}
+
+    @cutout InlineSegmentStart "(" @start  {segType=CMETA_SEGMENT_INLINE; goto foundPossibleSeg;} 
     "(" {goto depthInc;}
+    @cutout IncludeSegmentStart "(" @start  {segType=CMETA_SEGMENT_INCLUDE; goto foundPossibleSeg;} 
+    @cutout FunctionSegmentStart "(" @start  {segType=CMETA_SEGMENT_FUNCTION; goto foundPossibleSeg;}
+
+    
     @start ")" @cutout {goto depthDec;}
     Comment1 {goto loop;}
     Comment2 {goto loop;}    
@@ -47,6 +65,8 @@ void CMetaRun(CMetaInstance *instance,CMetaBuffer *textStart)
       instance->inSegment=true;
       instance->segmentDepth=instance->cbracketDepth++;
       CMetaSegment temp;
+      temp.type=segType;
+      temp.completed=false;
       temp.positionStart.pos=start-textStart->fileStart;
       temp.positionStart.cutoutPos=cutout-textStart->fileStart;
       cvector_push_back(instance->segments, temp); 
@@ -63,6 +83,7 @@ void CMetaRun(CMetaInstance *instance,CMetaBuffer *textStart)
       size_t last=cvector_size(instance->segments)-1;
       //
       CMetaSegment *seg=&cvector_begin(instance->segments)[last];
+      seg->completed=true;
       seg->positionEnd.pos=start-textStart->fileStart;
       seg->positionEnd.cutoutPos=cutout-textStart->fileStart;
       //
@@ -80,7 +101,6 @@ void CMetaRun(CMetaInstance *instance,CMetaBuffer *textStart)
  end:
   return;
 }
-typedef cvector_vector_type(sds) vec_sds;
 sds CMetaTextToTemplate(const sds text, int templateNumber)
 {
   const char *oldPtr=text;
@@ -100,7 +120,6 @@ sds CMetaTextToTemplate(const sds text, int templateNumber)
   retVal=sdscatfmt(retVal, "  WriteTemplate(template%i, sizeof(template%i)/sizeof(const char *));\n", templateNumber, templateNumber);
   return retVal;
 }
-
 void CMetaWriteOut(const CMetaInstance *instance, const CMetaBuffer *buffer, const char *outputFile, const CMetaCompilerOptions *compilerOptions, const char *testSourceFile)
 {
   char inputFileNameBuffer[4*strlen(buffer->fileName)+1];
@@ -112,8 +131,10 @@ void CMetaWriteOut(const CMetaInstance *instance, const CMetaBuffer *buffer, con
     {
      "#include <stdio.h>",
      "#include <string.h>",
+     "%s",
      "const char *INPUT_FILE_NAME=\"%s\";",
      "const char *OUTPUT_FILE_NAME=\"%s\";",
+     "#define WRITE_OUT(text) fwrite(text ,1, strlen(text), OUTPUT_FILE_NAME)",
      "FILE *OUTPUT_FILE;",
      "void WriteTemplate(const char *template[], size_t count) {",
      "  for(int i=0;i!=count;i++) {",
@@ -121,6 +142,7 @@ void CMetaWriteOut(const CMetaInstance *instance, const CMetaBuffer *buffer, con
      "    fwrite(\"\\n\", 1, 1, OUTPUT_FILE);",
      "  }",
      "}",
+     "%s",
      "int main(int argc, const  char** argv) {",
      "  OUTPUT_FILE=fopen(OUTPUT_FILE_NAME, \"w\");",
      "%s",
@@ -128,6 +150,9 @@ void CMetaWriteOut(const CMetaInstance *instance, const CMetaBuffer *buffer, con
      "  return 0;",
      "}"
     };
+  //
+  vec_sds functions=NULL;
+  vec_sds includes=NULL;
   //
   size_t startPos=0;
   const char *inlineTextPtr=buffer->fileStart;
@@ -148,12 +173,29 @@ void CMetaWriteOut(const CMetaInstance *instance, const CMetaBuffer *buffer, con
       //
       const char *codeSliceStart=segPtr->positionStart.pos+buffer->fileStart;
       size_t codeSliceSize=segPtr->positionEnd.pos-segPtr->positionStart.pos;
-      sds generateCode=sdsnewlen(codeSliceStart, codeSliceSize); //FREED
-      codeSegment=sdscatfmt(codeSegment, "\n%s\n", generateCode);
       //
-      extractedSource=sdscatsds(extractedSource, codeSegment);
-      sdsfree(codeSegment);
-      sdsfree(generateCode);
+      sds inlineCode=sdsnewlen(codeSliceStart, codeSliceSize); //FREED
+      codeSegment=sdscatfmt(codeSegment, "\n%s\n", inlineCode); //FREED
+      //
+      if(segPtr->type==CMETA_SEGMENT_INLINE)
+	{
+	  extractedSource=sdscatsds(extractedSource, codeSegment);
+	  sdsfree(codeSegment);
+	  sdsfree(inlineCode);
+	}
+      else if(segPtr->type==CMETA_SEGMENT_FUNCTION)
+	{
+	  cvector_push_back(functions, inlineCode);
+	}
+      else if(segPtr->type==CMETA_SEGMENT_INCLUDE)
+	{
+	  cvector_push_back(includes, inlineCode);
+	}
+      else
+	{
+	  printf("Unkown segment type.");
+	  assert(false);
+	}
       //
       startPos=segPtr->positionEnd.cutoutPos;
     }
@@ -180,14 +222,16 @@ void CMetaWriteOut(const CMetaInstance *instance, const CMetaBuffer *buffer, con
   compileCommands=sdscatfmt(compileCommands, "%s -o %s %s %s && %s ", compilerOptions->compiler, outName, options, absolutePath, outName);
   free(outName);
   //
-  sds filledOutTemplate=sdsnew(compilerOptions->includes); //FREED
+  sds filledOutTemplate=sdsnew(""); //FREED
   size_t templateLines=sizeof(template)/sizeof(const char *);
   vec_sds items=NULL;
-  
-  
   cvector_push_back(items, extractedSource); //extractedSource freed in loop
+  sds functionsStr=CMetaCombineFormat(functions, "%s\n"); //FREED in loop
+  cvector_push_back(items, functionsStr);
   cvector_push_back(items, sdsnew(outputFileNameBuffer)); //FREED in loop
   cvector_push_back(items, CMetaMakeFileNameAboslute(sdsnew(inputFileNameBuffer))); //FREED in loop
+  sds includesStr=CMetaCombineFormat(includes, "%s\n"); //FREED in loop
+  cvector_push_back(items, includesStr);
   for(int i=0;i!=templateLines;i++)
     {
       const char* line=template[i];
@@ -226,4 +270,17 @@ void CMetaWriteOut(const CMetaInstance *instance, const CMetaBuffer *buffer, con
   sdsfree(filledOutTemplate);
   sdsfree(options);
   sdsfree(compileCommands);
+  
+  vec_sdsDestroy(includes);
+  vec_sdsDestroy(functions);
+}
+void CMetaInstanceDestroy(CMetaInstance *instance)
+{
+  size_t size=cvector_size(instance->segments);
+  CMetaSegment *basePtr=cvector_begin(instance->segments);
+  while(--size)
+    {
+      sdsfree(basePtr[size].code);
+    }
+  cvector_free(instance->segments);
 }

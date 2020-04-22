@@ -2,8 +2,16 @@
 #include "lexer.h"
 #include "ext/c-vector/cvector.h"
 #include "ext/sds/sds.h"
+typedef enum
+  {
+   CMETA_SEGMENT_FUNCTION,
+   CMETA_SEGMENT_INCLUDE,
+   CMETA_SEGMENT_INLINE,
+  } CMetaSegmentType;
 typedef struct
 {
+  bool completed;
+  CMetaSegmentType type;
   sds code;
   CMetaFilePosition positionStart;
   CMetaFilePosition positionEnd;
@@ -23,9 +31,9 @@ typedef struct
   const char *compiler;
   vec_const_charP options;
   bool deleteSourceAfterUse;
-  sds includes;
 } CMetaCompilerOptions;
 
 CMetaInstance CMetaInstanceInit();
+void CMetaInstanceDestroy(CMetaInstance *instance);
 void CMetaRun(CMetaInstance *instance,CMetaBuffer *textStart);
 void CMetaWriteOut(const CMetaInstance *instance, const CMetaBuffer *buffer, const char *outputFile, const CMetaCompilerOptions *compilerOptions, const char *testSourceFile);
