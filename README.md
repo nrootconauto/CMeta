@@ -2,10 +2,14 @@
 ## Basics
 This runs c code on c code. To use it,use any macro-like invocation that starts with  `CMETA_SEGMENT_START` and insert your C code inside. The C code should write to `OUTPUT_FILE`  to create source code.For example:
 ```
-CMETA_SEGMENT_START({
-	const char *hw="Hello World";
-	fwrite(hw , 1, strlen(hw), OUTPUT_FILE);
-})
+int main() {
+    printf(
+        CMETA_SEGMENT_START({
+	    const char *hw="Hello World";
+	    fwrite(hw , 1, strlen(hw), OUTPUT_FILE);		
+	})
+    );
+}
 ```
 ###  Mock values
 Any macro like invocation that starts with`CMETA_SEGMENT_START` will invoke the inline C code. This can be used for making "mock" macros that can represent the type or value that will be generated. This is useful for integrating with code auto-completion engines. For Example:

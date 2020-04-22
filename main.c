@@ -30,9 +30,10 @@ const char *CMetaLastOccurance(const char *input,const char whichChar)
 {
   const char *pos=input;
   const char *last=NULL;
-  while(pos==strchr(pos, whichChar))
+  while((pos=strchr(pos, whichChar)))
     {
       last=pos;
+      pos++;
     }
   return last;
 }
@@ -94,7 +95,8 @@ int main(int argc,const char **argv)
   else
     {
       int errorCode;
-      CMetaBuffer buffer=CMetaBufferInit(inputFile, &errorCode);
+      sds absoluteInputFileName=CMetaMakeFileNameAboslute(sdsnew(inputFile)); //FREED
+      CMetaBuffer buffer=CMetaBufferInit(absoluteInputFileName, &errorCode);
       if(errorCode)
 	{
 	  printf("File \"%s\" doesnt exist.", inputFile);
@@ -174,6 +176,7 @@ int main(int argc,const char **argv)
       CMetaBufferDestroy(&buffer);
       sdsfree(outputFilePath);
       sdsfree(includesCode);
+      sdsfree(absoluteInputFileName);
     }
   return EXIT_SUCCESS;
 }

@@ -31,6 +31,7 @@ void CMetaRun(CMetaInstance *instance,CMetaBuffer *textStart)
     Macro=[#]([\\][^ \t]|[^\\\n]*|[\\][ \t]*[\n])*;
 
     * {goto loop;}
+    Macro {goto loop;}
     @cutout SegmentStart "(" @start  {goto foundPossibleSeg;} 
     "(" {goto depthInc;}
     @start ")" @cutout {goto depthDec;}
@@ -186,7 +187,7 @@ void CMetaWriteOut(const CMetaInstance *instance, const CMetaBuffer *buffer, con
   
   cvector_push_back(items, extractedSource); //extractedSource freed in loop
   cvector_push_back(items, sdsnew(outputFileNameBuffer)); //FREED in loop
-  cvector_push_back(items, sdsnew(inputFileNameBuffer)); //FREED in loop
+  cvector_push_back(items, CMetaMakeFileNameAboslute(sdsnew(inputFileNameBuffer))); //FREED in loop
   for(int i=0;i!=templateLines;i++)
     {
       const char* line=template[i];
