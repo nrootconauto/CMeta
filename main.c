@@ -8,7 +8,7 @@
 #include <unistd.h>
 static const char *usage[]=
   {
-   "cmeta inputFile [--cc compiler] [-s generatorFile] [-o outfile] [[--] compilerOptions]",
+   "CMeta inputFile [--cc compiler] [-s generatorFile] [-o outfile] [[--] compilerOptions]",
    NULL
   };
 sds CMetaFormatIncludes(const char *string, const char chr)
