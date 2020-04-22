@@ -20,12 +20,12 @@ int x=CMETA_SEGMENT_START_MockInt({
 ## Scope
 The CMeta segments share a common scope,so variables in different segments are accessible to each other. For example:
 ```
-CMETA_SEGMENT_START_MockInt(
+CMETA_SEGMENT_START(
 	const char *HelloWorld="Hello World";
 	fwrite(toInsert, 1, strlen(toInsert), OUTPUT_FILE);
 )
 
-CMETA_SEGMENT_START_MockInt(
+CMETA_SEGMENT_START(
 	//Hello World is accessble from here to
 	fwrite(toInsert, 1, strlen(toInsert), OUTPUT_FILE);
 )
