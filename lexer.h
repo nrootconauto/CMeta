@@ -13,7 +13,11 @@ typedef struct
   size_t pos;
   size_t cutoutPos;
 } CMetaFilePosition;
-
+typedef struct
+{
+  size_t start;
+  size_t end;
+} CMetaSourceSlice;
 typedef struct
 {
   const char *fileStart;
@@ -24,3 +28,4 @@ typedef struct
 CMetaBuffer CMetaBufferInit(const char *fileName,int *errorCode);
 void CMetaBufferDestroy(CMetaBuffer *buffer);
 void CMetaProccessString(CMetaBuffer *stringStart);
+sds CMetaGetLocationString(CMetaBuffer *buffer, size_t pos);

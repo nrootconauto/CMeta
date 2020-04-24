@@ -2,8 +2,10 @@
 #include "lexer.h"
 #include "ext/c-vector/cvector.h"
 #include "ext/sds/sds.h"
+#define CMETA_TEMPLATE_FILE "../CMetaTemplate.c"
 typedef enum
   {
+   CMETA_SEGMENT_MARK,
    CMETA_SEGMENT_FUNCTION,
    CMETA_SEGMENT_INCLUDE,
    CMETA_SEGMENT_INLINE,
@@ -12,11 +14,17 @@ typedef struct
 {
   bool completed;
   CMetaSegmentType type;
-  sds code;
+  sds scope;
   CMetaFilePosition positionStart;
   CMetaFilePosition positionEnd;
 } CMetaSegment;
 typedef cvector_vector_type(CMetaSegment) vec_CMetaSegment;
+typedef struct
+{
+  size_t pos;
+  sds name;
+} CMetaMark;
+typedef cvector_vector_type(CMetaMark) vec_CMetaMark; 
 typedef struct
 {
   int cbracketDepth;
@@ -35,5 +43,6 @@ typedef struct
 
 CMetaInstance CMetaInstanceInit();
 void CMetaInstanceDestroy(CMetaInstance *instance);
-void CMetaRun(CMetaInstance *instance,CMetaBuffer *textStart);
+int CMetaRun(CMetaInstance *instance,CMetaBuffer *textStart);
 void CMetaWriteOut(const CMetaInstance *instance, const CMetaBuffer *buffer, const char *outputFile, const CMetaCompilerOptions *compilerOptions, const char *testSourceFile);
+sds CMetaTrimSds(const sds input);

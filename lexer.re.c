@@ -1,6 +1,10 @@
 #include "lexer.h"
 #include <assert.h>
 #include "CMeta.h"
+#include "util.h"
+//placeholder
+#define YYMAXFILL 10
+/*!max:re2c*/
 CMetaBuffer CMetaBufferInit(const char *fileName, int *errorCode)
 {
   CMetaBuffer retVal;
@@ -34,27 +38,47 @@ void CMetaBufferDestroy(CMetaBuffer *buffer)
 {
   sdsfree((sds)buffer->fileStart);
 }
-void CMetaProccessString(CMetaBuffer *stringStart)
+bool CMetaIsIdentifier(const char *text)
 {
-  const char *start=NULL,*end=NULL,*YYMARKER=NULL;
-  
-  /*!stags:re2c format='const char *@@;';*/
-  /*!re2c
-    re2c:yyfill:enable=0;    
-    re2c:define:YYCTYPE=char;
-    re2c:define:YYCURSOR=stringStart->bufferPos;
-    re2c:define:YYLIMIT=stringStart->fileEnd;
-
-    String1=["]([\\].|[^"])*["];
-    String2=[']([\\].|[^'])*['];
-
-    @start String1 @end {goto end;}
-    @start String2 @end {goto end;}
-  */
-    end:
-  if(end==NULL)
+  const char *ptr;
+  for(ptr=text;*ptr!='\0';ptr++)
     {
-      printf("Incomplete string.");
-      assert(end!=NULL);
+      if(*ptr>='a'&&*ptr<='z')
+	continue;
+      if(*ptr>='A'&&*ptr<='Z')
+	continue;
+      if(*ptr=='_')
+	continue;
+      //check if passed first charactor
+      if(ptr!=text)
+	if(*ptr>='0'&&*ptr<='9')
+	  continue;
+      break;
     }
+  return ptr!=text;
+}
+sds CMetaGetLocationString(CMetaBuffer *buffer, size_t pos)
+{
+  char buffer2[YYMAXFILL+1];
+  const char *limit=buffer2;
+  const char *cursor,*YYMARKER;
+  int line=1,col=1;
+#define YYFILL(n) CMetaYYFILL(file, buffer2, &limit, &cursor, n, YYMAXFILL);
+  FILE *file=fopen(buffer->fileName, "r");
+  if(file==NULL)
+    return NULL;
+ loop:
+  if(pos--==0)
+    goto end;
+  /*!re2c
+    re2c:define:YYCTYPE=char;
+    re2c:define:YYCURSOR=cursor;
+    re2c:define:YYLIMIT=limit;
+
+    * {col++;goto loop;}
+    [\n] {line++; col=1; goto loop;}
+   */
+ end:
+  fclose(file);
+  return sdscatfmt(sdsnew(""), "\"%s\" %i:%i", buffer->fileName, line, col);
 }

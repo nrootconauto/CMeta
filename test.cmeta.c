@@ -1,8 +1,8 @@
 //CMeta test.cmeta.c -istring.h
 #include <stdio.h>
 #define CMETA_INCLUDE(...) 
-CMETA_INCLUDE(#include <stdlib.h>)
-#define CMETA_SEGMENT_START(...) "placeholder"
+CMETA_INCLUDE(#include <stdlifgdfgfb.h>)
+#define CMETA_INLINE(...) "placeholder"
 int main() {
     printf(
         CMETA_INLINE({
