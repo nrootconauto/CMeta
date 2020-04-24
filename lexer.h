@@ -20,9 +20,9 @@ typedef struct
 } CMetaSourceSlice;
 typedef struct
 {
-  const char *fileStart;
-  const char *bufferPos;
-  const char *fileEnd;
+  char *fileStart;
+  char *bufferPos;
+  char *fileEnd;
   const char *fileName;
 } CMetaBuffer;
 CMetaBuffer CMetaBufferInit(const char *fileName,int *errorCode);

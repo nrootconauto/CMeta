@@ -65,12 +65,10 @@ char  *CMetaReadSliceFromFile(FILE *file, char *buffer, size_t bufferStart, size
   bool canSliceFromBuffer=IN_RANGE(start)||IN_RANGE(end);
   if(canSliceFromBuffer)
     {
-      size_t bufferSliceStart=start-bufferStart;
-      bufferSliceStart=(bufferSliceStart>0)?bufferSliceStart:0;
-      size_t bufferSliceEnd=end-bufferStart;
-      bufferSliceEnd=(bufferSliceStart<bufferSize)?bufferSliceStart:bufferSize;
-      size_t relativeStart=bufferStart-start;
-      memcpy(retVal+relativeStart, buffer, bufferSliceEnd-bufferSliceStart);
+      size_t bufferSliceStart=(start>bufferStart)?start-bufferStart:0;
+      size_t bufferSliceEnd=(end-bufferStart>bufferSize)?bufferSize:end-bufferStart;
+      size_t relativeStart=(bufferStart>start)?bufferStart-start:0;
+      memcpy(retVal+relativeStart, buffer+bufferSliceStart, bufferSliceEnd-bufferSliceStart);
       //copy preceding section
       if(start<bufferStart)
 	{

@@ -40,8 +40,8 @@ const char *CMetaLastOccurance(const char *input,const char whichChar)
 int main(int argc,const char **argv)
 {
   FILE *file=fopen("../bufferTest.txt", "r");
-  char buffer[8];
-  size_t size=5;
+  size_t size=3;
+  char buffer[size];
   char *cursor=buffer+size,*limit=buffer+size;
   for(int i=1;i!=8;i++)
     {
@@ -50,7 +50,7 @@ int main(int argc,const char **argv)
       cursor+=2;
       printf("start:%i\n:buffer:%s\n", size1, buffer);
       if(size1==6)
-	printf("slice5:10:%s",CMetaReadSliceFromFile(file, buffer, 6, size, 5, 10));
+	printf("slice7:9:%s",CMetaReadSliceFromFile(file, buffer, 6, size, 7, 9));
     }
   return EXIT_SUCCESS;
   struct argparse argparser;
