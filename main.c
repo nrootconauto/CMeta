@@ -39,6 +39,18 @@ const char *CMetaLastOccurance(const char *input,const char whichChar)
 }
 int main(int argc,const char **argv)
 {
+  FILE *file=fopen("../bufferTest.txt", "r");
+  char buffer[8];
+  size_t size=5;
+  char *cursor=buffer+size,*limit=buffer+size;
+  for(int i=1;i!=8;i++)
+    {
+      int size1=CMetaYYFILL(file, buffer, &limit, &cursor, 0, size);
+      buffer[size]='\0';
+      cursor++;
+      printf("start:%i\n:buffer:%s\n", size1, buffer);
+    }
+  return EXIT_SUCCESS;
   struct argparse argparser;
   const char *compiler="gcc";
   const char *outputFile=NULL;

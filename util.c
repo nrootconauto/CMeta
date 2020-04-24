@@ -1,3 +1,4 @@
+#include <stdbool.h>
 #include "util.h"
 #include "assert.h"
 #include <unistd.h>
@@ -49,20 +50,23 @@ sds CMetaTrimSds(const sds input)
   sdsfree(input);
   return temp;
 }
-size_t CMetaYYFILL(FILE *inputFile, char *buffer, const char **limit,char **cursor,size_t n, size_t bufferSize)
+size_t CMetaYYFILL(FILE *inputFile, char *buffer, char **limit,char **cursor,size_t n, size_t bufferSize)
 {
+  bool firstRun=ftell(inputFile)==0;
+  if(firstRun)
+    *cursor=buffer;
   //
   const char *oldCursor=*cursor;
   *cursor=buffer;
   //
-  size_t oldRemaining=bufferSize-(oldCursor-buffer);
+  size_t oldRemaining=firstRun?0:bufferSize-(oldCursor-buffer);
   memmove(*cursor, oldCursor, oldRemaining);
-  //
-  size_t bufferStartPosition=ftell(inputFile)-(oldCursor-buffer);
   //
   size_t requested=bufferSize-oldRemaining;
   size_t read=fread(buffer+oldRemaining, 1, requested, inputFile);
   *limit=read+*cursor;
+  //
+  size_t bufferStartPosition=ftell(inputFile)-bufferSize;
   //
   if(read!=requested)
       memset(*cursor+read, 0, bufferSize-read);

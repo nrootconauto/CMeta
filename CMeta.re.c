@@ -39,18 +39,66 @@ int CMetaIsIncomplete(CMetaBuffer *buffer,CMetaInstance *instance)
       }
   return 0;
 }
+void CMetaBufferPtr2FPos(char *buffer, char **itemPtrs[], size_t *itemIndexes[],  size_t itemCount,size_t filePos)
+{
+  while(itemCount--)
+    {
+      *itemIndexes[itemCount]=*itemPtrs[itemCount]-buffer+filePos;
+    }
+}
+void CMetaApplyOffet2Items(char **items[], size_t itemCount, signed long offset)
+{
+  while(itemCount--)
+    {
+      *items[itemCount]+=offset;
+    }
+}
 int CMetaRun(CMetaInstance *instance,CMetaBuffer *textStart)
 {
   char buffer[YYMAXFILL+1];
-  const char *start, *cutout, *YYMARKER=NULL, *currentSegmentBegin;
-  const char *scopeNameStart, *scopeNameEnd, *end; 
+  char *limit=buffer;
+  char *cursor=buffer;
+  //
+  FILE *iFile=fopen(textStart->fileName, "r");
+  size_t oldBufferFileStart=0;
+  size_t bufferFileStart=CMetaYYFILL(iFile, buffer, &limit, &cursor, YYMAXFILL, YYMAXFILL);
+  //
+  char *start, *cutout, *YYMARKER=NULL, *currentSegmentBegin;
+  size_t startFPos,cutoutFPos,currentSegmentBeginFPos;
+  char *scopeNameStart, *scopeNameEnd, *end; 
+  size_t scopeNameStartFPos,scopeNameEndFPos,endFPos;
+  //
+  char **markers[]=
+    {
+     &start,
+     &cutout,
+     &currentSegmentBegin,
+     &scopeNameStart,
+     &scopeNameEnd,
+     &end
+    };
+  const size_t itemCount=sizeof(markers)/sizeof(const char **);
+  size_t *markerFPos[]=
+    {
+     &startFPos,
+     &cutoutFPos,
+     &currentSegmentBeginFPos,
+     &scopeNameStartFPos,
+     &scopeNameEndFPos,
+     &endFPos,
+    };
+  //
   CMetaSegmentType segType;
   bool expectingScopeName,scopeNameAsString;
+#define YYFILL(n) \
+  bufferFileStart=CMetaYYFILL(iFile, buffer, &limit, &cursor, n, YYMAXFILL);
+  CMetaApplyOffet2Items(markers, itemCount, bufferFileStart-oldBufferFileStart);
+  oldBufferFileStart=bufferFileStart;
  loop:
   ;
-  /*!stags:re2c format='const char *@@;';*/
+  /*!stags:re2c format='char *@@;';*/
   /*!re2c
-    re2c:yyfill:enable=0;
+    re2c:yyfill:enable=1;
     re2c:define:YYCTYPE=char;
     re2c:define:YYCURSOR=textStart->bufferPos;
     re2c:define:YYLIMIT=textStart->fileEnd;
@@ -89,6 +137,7 @@ int CMetaRun(CMetaInstance *instance,CMetaBuffer *textStart)
     [\x00] {goto end;}
     String {goto loop;}
   */
+  /*  */
  foundPossibleScope:
    //for an identifer that can represent the scope,cehck if it is at the start of the current segment
    if(expectingScopeName)
@@ -207,7 +256,7 @@ void CMetaFillOutTemplateFile(const char *templateFile, const char* outputFile, 
   char buffer[YYMAXFILL];
   char buffer2[CMETA_FILE_BUFFER_SIZE+1];
   size_t buffer2Size=0;
-  const char *limit=buffer;
+  char *limit=buffer;
   char *cursor=buffer+YYMAXFILL, *YYMARKER=NULL;
   //
   FILE *iFile=fopen(templateFile, "r");
