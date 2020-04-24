@@ -46,3 +46,4 @@ void CMetaInstanceDestroy(CMetaInstance *instance);
 int CMetaRun(CMetaInstance *instance,CMetaBuffer *textStart);
 void CMetaWriteOut(const CMetaInstance *instance, const CMetaBuffer *buffer, const char *outputFile, const CMetaCompilerOptions *compilerOptions, const char *testSourceFile);
 sds CMetaTrimSds(const sds input);
+char *CMetaReadSliceFromFile(FILE *file, char *buffer, size_t bufferStart, size_t bufferSize, size_t start, size_t end);

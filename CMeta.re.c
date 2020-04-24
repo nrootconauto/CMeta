@@ -53,6 +53,47 @@ void CMetaApplyOffet2Items(char **items[], size_t itemCount, signed long offset)
       *items[itemCount]+=offset;
     }
 }
+char  *CMetaReadSliceFromFile(FILE *file, char *buffer, size_t bufferStart, size_t bufferSize, size_t start, size_t end)
+{
+  
+  size_t fLoc=ftell(file);
+  size_t originalFLoc=fLoc;
+  char *retVal=malloc(end-start);
+  //extract slice from buffer
+  size_t bufferEnd=bufferStart+bufferSize;
+#define IN_RANGE(x) (x>=bufferStart&&x<bufferEnd)
+  bool canSliceFromBuffer=IN_RANGE(start)||IN_RANGE(end);
+  if(canSliceFromBuffer)
+    {
+      size_t bufferSliceStart=start-bufferStart;
+      bufferSliceStart=(bufferSliceStart>0)?bufferSliceStart:0;
+      size_t bufferSliceEnd=end-bufferStart;
+      bufferSliceEnd=(bufferSliceStart<bufferSize)?bufferSliceStart:bufferSize;
+      size_t relativeStart=bufferStart-start;
+      memcpy(retVal+relativeStart, buffer, bufferSliceEnd-bufferSliceStart);
+      //copy preceding section
+      if(start<bufferStart)
+	{
+	  fseek(file, start-fLoc, SEEK_CUR);
+	  fread(retVal, 1, bufferStart-start, file);
+	  fLoc=ftell(file);
+	}
+      //copy proc
+      if(end>bufferEnd)
+	{
+	  fseek(file, bufferEnd-fLoc, SEEK_CUR);
+	  fread(retVal, 1, end-bufferEnd, file);
+	  fLoc=ftell(file);
+	}
+    }
+  else
+    {
+      fseek(file, start-fLoc, SEEK_CUR);
+      fread(retVal, 1, end-start, file);
+    }
+  fseek(file ,originalFLoc-fLoc, SEEK_CUR);
+  return retVal;
+}
 int CMetaRun(CMetaInstance *instance,CMetaBuffer *textStart)
 {
   char buffer[YYMAXFILL+1];
@@ -92,7 +133,7 @@ int CMetaRun(CMetaInstance *instance,CMetaBuffer *textStart)
   bool expectingScopeName,scopeNameAsString;
 #define YYFILL(n) \
   bufferFileStart=CMetaYYFILL(iFile, buffer, &limit, &cursor, n, YYMAXFILL);
-  CMetaApplyOffet2Items(markers, itemCount, bufferFileStart-oldBufferFileStart);
+  CMetaApplyOffet2Items(markers, itemCount, -(bufferFileStart-oldBufferFileStart));
   oldBufferFileStart=bufferFileStart;
  loop:
   ;

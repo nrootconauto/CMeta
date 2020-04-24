@@ -47,8 +47,10 @@ int main(int argc,const char **argv)
     {
       int size1=CMetaYYFILL(file, buffer, &limit, &cursor, 0, size);
       buffer[size]='\0';
-      cursor++;
+      cursor+=2;
       printf("start:%i\n:buffer:%s\n", size1, buffer);
+      if(size1==6)
+	printf("slice5:10:%s",CMetaReadSliceFromFile(file, buffer, 6, size, 5, 10));
     }
   return EXIT_SUCCESS;
   struct argparse argparser;
