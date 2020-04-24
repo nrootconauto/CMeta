@@ -17,7 +17,12 @@ add_custom_command(
   COMMAND re2c -T  "${CMAKE_SOURCE_DIR}/CMeta.re.c" -o "${CMAKE_SOURCE_DIR}/CMeta.c"
   DEPENDS "${CMAKE_SOURCE_DIR}/CMeta.re.c" )
 
-add_executable(CMeta "${CMAKE_SOURCE_DIR}/lexer.c" "${CMAKE_SOURCE_DIR}/util.c" "${CMAKE_SOURCE_DIR}/main.c" "${CMAKE_SOURCE_DIR}/CMeta.c")
+add_custom_command(
+  OUTPUT "${CMAKE_SOURCE_DIR}/fillOutTemplate.c"
+  COMMAND re2c -T  "${CMAKE_SOURCE_DIR}/fillOutTemplate.re.c" -o "${CMAKE_SOURCE_DIR}/fillOutTemplate.c"
+  DEPENDS "${CMAKE_SOURCE_DIR}/lexer.re.c" )
+
+add_executable(CMeta "${CMAKE_SOURCE_DIR}/fillOutTemplate.c" "${CMAKE_SOURCE_DIR}/lexer.c" "${CMAKE_SOURCE_DIR}/util.c" "${CMAKE_SOURCE_DIR}/main.c" "${CMAKE_SOURCE_DIR}/CMeta.c")
 target_link_libraries(CMeta PUBLIC sds argparse unescaper)
 
 install(PROGRAMS "${CMAKE_BINARY_DIR}/CMeta" DESTINATION bin)

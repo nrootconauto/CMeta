@@ -2,6 +2,7 @@
 #include "string.h"
 #include "util.h"
 #include "ext/C_Unescaper/escaper.h"
+#include "fillOutTemplate.h"
 //placeholder
 #define CMETA_FILE_BUFFER_SIZE 1024
 #define YYMAXFILL 10
@@ -58,7 +59,7 @@ char  *CMetaReadSliceFromFile(FILE *file, char *buffer, size_t bufferStart, size
   
   size_t fLoc=ftell(file);
   size_t originalFLoc=fLoc;
-  char *retVal=malloc(end-start);
+  char *retVal=calloc(end-start+1, 1);
   //extract slice from buffer
   size_t bufferEnd=bufferStart+bufferSize;
 #define IN_RANGE(x) (x>=bufferStart&&x<bufferEnd)
@@ -76,7 +77,7 @@ char  *CMetaReadSliceFromFile(FILE *file, char *buffer, size_t bufferStart, size
 	  fread(retVal, 1, bufferStart-start, file);
 	  fLoc=ftell(file);
 	}
-      //copy proc
+      //copy proceding
       if(end>bufferEnd)
 	{
 	  fseek(file, bufferEnd-fLoc, SEEK_CUR);
@@ -90,58 +91,57 @@ char  *CMetaReadSliceFromFile(FILE *file, char *buffer, size_t bufferStart, size
       fread(retVal, 1, end-start, file);
     }
   fseek(file ,originalFLoc-fLoc, SEEK_CUR);
+
   return retVal;
 }
 int CMetaRun(CMetaInstance *instance,CMetaBuffer *textStart)
 {
-  char buffer[YYMAXFILL+1];
-  char *limit=buffer;
-  char *cursor=buffer;
+  const size_t bufferSize=YYMAXFILL;
+  char buffer[bufferSize];
+  size_t limit=0;
+  size_t cursor=0;
+  char *bufferLimit;
+  char *bufferCursor;
   //
   FILE *iFile=fopen(textStart->fileName, "r");
   size_t oldBufferFileStart=0;
-  size_t bufferFileStart=CMetaYYFILL(iFile, buffer, &limit, &cursor, YYMAXFILL, YYMAXFILL);
+  size_t bufferFileStart=CMetaYYFILL(iFile, buffer, &bufferLimit, &bufferCursor, YYMAXFILL, bufferSize);
   //
-  char *start, *cutout, *YYMARKER=NULL, *currentSegmentBegin;
-  size_t startFPos,cutoutFPos,currentSegmentBeginFPos;
-  char *scopeNameStart, *scopeNameEnd, *end; 
-  size_t scopeNameStartFPos,scopeNameEndFPos,endFPos;
-  //
-  char **markers[]=
-    {
-     &start,
-     &cutout,
-     &currentSegmentBegin,
-     &scopeNameStart,
-     &scopeNameEnd,
-     &end
-    };
-  const size_t itemCount=sizeof(markers)/sizeof(const char **);
-  size_t *markerFPos[]=
-    {
-     &startFPos,
-     &cutoutFPos,
-     &currentSegmentBeginFPos,
-     &scopeNameStartFPos,
-     &scopeNameEndFPos,
-     &endFPos,
-    };
+  size_t scopeNameStart,scopeNameEnd,start,end,cutout;
+  size_t currentSegmentBegin;
   //
   CMetaSegmentType segType;
   bool expectingScopeName,scopeNameAsString;
 #define YYFILL(n) \
-  bufferFileStart=CMetaYYFILL(iFile, buffer, &limit, &cursor, n, YYMAXFILL);
-  CMetaApplyOffet2Items(markers, itemCount, -(bufferFileStart-oldBufferFileStart));
-  oldBufferFileStart=bufferFileStart;
+  { \
+    bufferCursor+=cursor-bufferFileStart;				\
+    bufferFileStart=CMetaYYFILL(iFile, buffer, &bufferLimit, &bufferCursor, n, bufferSize); \
+    oldBufferFileStart=bufferFileStart;					\
+}
  loop:
   ;
-  /*!stags:re2c format='char *@@;';*/
+  size_t YYMARKER,YYCTXMARKER;
+#define YYSKIP() cursor++;
+#define YYPEEK() *(buffer+cursor-bufferFileStart);
+#define YYBACKUP() YYMARKER=cursor;
+#define YYRESTORE() cursor=YYMARKER;
+#define YYBACKUPCTX() YYCTXMARKER=cursor;
+#define YYRESTORECTX() cursor=YYCTXMARKER;
+#define YYRESTORETAG(t) cursor=t;
+#define YYLIMIT (bufferFileStart+bufferSize)
+#define YYLESSTHAN(n) YYLIMIT - cursor < n
+#define YYSTAGP(t) t = cursor
+#define YYSTAGPD(t) cursor - 1
+#define YYSTAGN(t) t = -1
+
+  /*!stags:re2c format='size_t @@;';*/
   /*!re2c
+    re2c:flags:input=custom;
     re2c:yyfill:enable=1;
     re2c:define:YYCTYPE=char;
-    re2c:define:YYCURSOR=textStart->bufferPos;
-    re2c:define:YYLIMIT=textStart->fileEnd;
-
+    re2c:define:YYCURSOR=cursor;
+    re2c:define:YYMTAGN=-1;
+    
     String1=["]([\\].|[^"])*["];
     String2=[']([\\].|[^'])*['];
     String=String1|String2;
@@ -183,17 +183,19 @@ int CMetaRun(CMetaInstance *instance,CMetaBuffer *textStart)
      {
        if(currentSegmentBegin==start)
 	 {
-	   size_t len=scopeNameEnd-scopeNameStart-2;//-2 ignores the " or '
-	   char scopeString[len+1];
-	   memcpy(scopeString-1, scopeNameStart+1, len); //-1 +1 gets rid of the " or '
-	   scopeString[len]='\0';
-	   char escaped[4*len+1];
-	   *unescapeString(scopeString, escaped)='\0';
-	   //last element
-	   CMetaSegment *last=cvector_end(instance->segments)-1;
-	   last->scope=sdsnew(escaped);
-	   //move the start of the segement past the scope identifier
-	   last->positionStart.pos=end-textStart->fileStart;
+	   if(scopeNameAsString)
+	     {
+	       size_t len=scopeNameEnd-scopeNameStart-2;//-2 ignores the " or '
+	        //-1 +1 gets rid of the " or '
+	       char *scopeString=CMetaReadSliceFromFile(iFile, buffer, bufferFileStart, bufferSize, scopeNameStart+1, scopeNameEnd-1);
+	       char escaped[4*len+1];
+	       *unescapeString(scopeString, escaped)='\0';
+	       //last element
+	       CMetaSegment *last=cvector_end(instance->segments)-1;
+	       last->scope=sdsnew(escaped);
+	       //move the start of the segement past the scope identifier
+	       last->positionStart.pos=end;
+	     }
 	 }
        expectingScopeName=false;
      }
@@ -208,8 +210,8 @@ int CMetaRun(CMetaInstance *instance,CMetaBuffer *textStart)
       CMetaSegment temp;
       temp.type=segType;
       temp.completed=false;
-      temp.positionStart.pos=start-textStart->fileStart;
-      temp.positionStart.cutoutPos=cutout-textStart->fileStart;
+      temp.positionStart.pos=start;
+      temp.positionStart.cutoutPos=cutout;
       temp.scope=NULL;
       cvector_push_back(instance->segments, temp);
       //
@@ -242,18 +244,15 @@ int CMetaRun(CMetaInstance *instance,CMetaBuffer *textStart)
 	}
       //
       seg->completed=true;
-      seg->positionEnd.pos=start-textStart->fileStart;
-      seg->positionEnd.cutoutPos=cutout-textStart->fileStart;
+      seg->positionEnd.pos=start;
+      seg->positionEnd.cutoutPos=cutout;
       //
       size_t startPos=seg->positionStart.pos;
-      size_t endPos=start-textStart->fileStart;
+      size_t endPos=start;
       //
       instance->inSegment=false;
     }
   goto loop;
- stringStart:
-  textStart->bufferPos=start;
-  CMetaProccessString(textStart);  
   goto loop;
  end:
   if(CMetaIsIncomplete(textStart, instance))
@@ -288,87 +287,6 @@ sds CMetaSegmentMarkName(const CMetaSegment *segment)
 sds CMetaWriteMark(const char *markName)
 {
   return sdscatfmt(sdsnew(""), "WRITE_OUT(%s)", markName);
-}
-void CMetaFillOutTemplateFile(const char *templateFile, const char* outputFile, const vec_sds includes, const vec_sds marksDeclarations, const vec_sds functionsCode, const vec_sds inlinesCode, const vec_sds writeCode)
-{
-  
-  char buffer[YYMAXFILL];
-  char buffer2[CMETA_FILE_BUFFER_SIZE+1];
-  size_t buffer2Size=0;
-  char *limit=buffer;
-  char *cursor=buffer+YYMAXFILL, *YYMARKER=NULL;
-  //
-  FILE *iFile=fopen(templateFile, "r");
-  FILE *oFile=fopen(outputFile, "w");
-#define WRITEOUT(str) \
-  fwrite(buffer2, 1, buffer2Size, oFile); \
-  fwrite(str, 1, sdslen(str), oFile);	  \
-  buffer2Size=0;
-  
-#define WRITEOUT_VEC(vec)			\
-  {						\
-    fwrite(buffer2, 1, buffer2Size, oFile);	\
-    buffer2Size=0;				\
-    size_t size=cvector_size(vec);		\
-    sds *basePtr=cvector_begin(vec);		\
-    for(size_t i=0;i!=size;i++)			\
-      {						\
-	sds str=basePtr[i];			\
-	fwrite(str, 1, sdslen(str), oFile);	\
-      }						\
-  }
-#define YYFILL(n) CMetaYYFILL(iFile, buffer, &limit, &cursor, n, YYMAXFILL);
-  char ch;
-  YYFILL(1);
- loop:
-  ch=*cursor;
-  /*!re2c
-    re2c:yyfill:enable=1;
-    re2c:define:YYCTYPE=char;
-    re2c:define:YYCURSOR=cursor;
-    re2c:define:YYLIMIT=limit;
-
-    Includes="@@CMETA_INCLUDES@@";
-    Marks="@@CMETA_MARKS@@";
-    Functions="@@CMETA_FUNCTIONS@@";
-    Inline="@@CMETA_INLINE@@";
-    WriteOut="@@CMETA_WRITE_TO_FILE@@";
-
-    * {goto gotChar;}
-    [\x00] {goto end;}
-    "/"[*]{1,} Whitespace Includes Whitespace [*]{1,}"/" {goto gotIncludes;}
-    "/"[*]{1,} Whitespace Marks Whitespace [*]{1,}"/" {goto gotMarks;}
-    "/"[*]{1,} Whitespace Functions Whitespace [*]{1,}"/" {goto gotFunctions;}
-    "/"[*]{1,} Whitespace Inline Whitespace [*]{1,}"/" {goto gotInline;}
-    "/"[*]{1,} Whitespace WriteOut Whitespace [*]{1,}"/" {goto gotWriteOut;}
-   */
- gotWriteOut:
-  WRITEOUT_VEC(writeCode);
-  goto loop;
- gotInline:
-  WRITEOUT_VEC(inlinesCode);
-  goto loop;
- gotFunctions:
-  WRITEOUT_VEC(functionsCode);
-  goto loop;
- gotMarks:
-  WRITEOUT_VEC(marksDeclarations);
-  goto loop;
- gotIncludes:
-  WRITEOUT_VEC(includes);
-  goto loop;
- gotChar:
-  buffer2[buffer2Size++]=ch;
-  if(buffer2Size==CMETA_FILE_BUFFER_SIZE)
-    {
-      fwrite(buffer2, 1, buffer2Size, oFile);
-      buffer2Size=0;
-    }
-  goto loop;
- end:
-  fwrite(buffer2, 1, buffer2Size, oFile);
-  fclose(iFile);
-  fclose(oFile);
 }
 void CMetaWriteOut(const CMetaInstance *instance, const CMetaBuffer *buffer, const char *outputFile, const CMetaCompilerOptions *compilerOptions, const char *testSourceFile)
 {
